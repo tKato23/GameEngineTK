@@ -10,6 +10,7 @@
 #include <Effects.h>
 #include <CommonStates.h>
 #include <SimpleMath.h>
+#include <Model.h>
 #include "DebugCamera.h"
 
 
@@ -87,4 +88,11 @@ private:
 
 	//	デバッグカメラ
 	std::unique_ptr<DebugCamera> m_debugCamera;
+
+	//	エフェクトファクトリ
+	std::unique_ptr<DirectX::EffectFactory> m_factory;
+	//	天球モデル
+	std::unique_ptr<DirectX::Model> m_modelSkydome;
+	//	地面モデル
+	std::unique_ptr<DirectX::Model> m_modelGround;
 };
