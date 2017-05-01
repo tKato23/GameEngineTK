@@ -72,6 +72,44 @@ void Game::Initialize(HWND window, int width, int height)
 	m_modelSkydome = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\Skydome.cmo", *m_factory);
 	//	地面モデルの生成
 	m_modelGround = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\ground1m.cmo", *m_factory);
+	//	球モデルの生成
+	m_modelBall = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\Sphere.cmo", *m_factory);
+
+
+	for (int i = 0; i < 20; i++)
+	{
+		//	ワールド行列を計算
+		//	スケーリング
+		Matrix scalemat = Matrix::CreateScale(1.0f);
+		//	ロール
+		Matrix rotmatz = Matrix::CreateRotationZ(0.0f);
+		//	ピッチ(仰角）
+		Matrix rotmatx = Matrix::CreateRotationX(0.0f);
+		//	ヨー(方位角）
+		Matrix rotmaty = Matrix::CreateRotationY(XMConvertToRadians(36.0f * (i + 1)));
+		//	回転行列の合成
+		Matrix rotmat = rotmatz * rotmatx * rotmaty;
+		//	平行移動
+		Matrix transmat;
+		if (i < 10)
+		{
+			transmat = Matrix::CreateTranslation(20.0f, 0.0f, 0.0f);
+		}
+		else
+		{
+			transmat = Matrix::CreateTranslation(40.0f, 0.0f, 0.0f);
+		}
+		//	ワールド行列の合成(SRT)
+		m_worldBall[i] = scalemat * transmat * rotmat;
+	}
+
+	//	回転を加えるための行列の初期化
+	float rot = XMConvertToRadians(1.0f);
+	m_rot = Matrix::CreateRotationY(rot);
+
+	//	逆回転を加えるための行列の初期化
+	float Rrot = XMConvertToRadians(-1.0f);
+	m_Rrot = Matrix::CreateRotationY(Rrot);
 }
 
 // Executes the basic game loop.
@@ -95,6 +133,21 @@ void Game::Update(DX::StepTimer const& timer)
 
 	//	毎フレーム処理を書く
 	m_debugCamera->Update();
+
+	for (int i = 0; i < 20; i++)
+	{
+		//	球に回転を加える
+		//	10個目までは逆回転を加える
+		if (i < 10)
+		{
+			m_worldBall[i] = m_worldBall[i] * m_Rrot;
+		}
+		else
+		{
+			m_worldBall[i] = m_worldBall[i] * m_rot;
+		}
+
+	}
 }
 
 // Draws the scene.
@@ -154,8 +207,20 @@ void Game::Render()
 
 	//	天球モデルの描画
 	m_modelSkydome->Draw(m_d3dContext.Get(), *m_states, m_world, m_view, m_proj);
-	//	地面モデルの描画
-	m_modelGround->Draw(m_d3dContext.Get(), *m_states, m_world, m_view, m_proj);
+
+	for (int i = 0; i < 40000; i++)
+	{
+		Matrix matrix = Matrix::CreateTranslation(i / 200 - 100, 0.0f, i % 200 - 100);
+
+		//	地面モデルの描画
+		m_modelGround->Draw(m_d3dContext.Get(), *m_states, matrix, m_view, m_proj);
+	}
+
+	for (int i = 0; i < 20; i++)
+	{
+		//	球モデルの描画
+		m_modelBall->Draw(m_d3dContext.Get(), *m_states, m_worldBall[i], m_view, m_proj);
+	}
 
 	m_batch->Begin();
 
