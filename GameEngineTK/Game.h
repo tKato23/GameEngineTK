@@ -11,6 +11,7 @@
 #include <CommonStates.h>
 #include <SimpleMath.h>
 #include <Model.h>
+#include <Keyboard.h>
 #include "DebugCamera.h"
 
 
@@ -99,9 +100,38 @@ private:
 	std::unique_ptr<DirectX::Model> m_modelBall;
 	//	球のワールド行列
 	DirectX::SimpleMath::Matrix m_worldBall[20];
+	//	ティーポットモデル
+	std::unique_ptr<DirectX::Model> m_modelTeapot;
+	//	ティーポットのワールド行列
+	DirectX::SimpleMath::Matrix m_worldTeapot[20];
+
+	DirectX::SimpleMath::Matrix m_worldTeapotSave[20];
+
+	//	頭モデル
+	std::unique_ptr<DirectX::Model> m_modelHead;
 
 	//	回転を加えるための行列
 	DirectX::SimpleMath::Matrix m_rot;
 	//	逆回転を加えるための行列
 	DirectX::SimpleMath::Matrix m_Rrot;
+
+	//	ティーポットのスケールを変化させるための行列
+	DirectX::SimpleMath::Matrix m_Scale;
+
+	//	ティーポットの座標用変数
+	float m_x[20];
+	float m_z[20];
+
+	float m_r;
+
+	//	キーボード
+	std::unique_ptr<DirectX::Keyboard> keyboard;
+	//	自機の座標
+	DirectX::SimpleMath::Vector3 head_pos;
+
+	//	自機の回転角
+	float head_rot;
+
+	//	自機のワールド行列
+	DirectX::SimpleMath::Matrix head_world;
 };
