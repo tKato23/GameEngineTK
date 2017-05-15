@@ -134,7 +134,13 @@ void Game::Initialize(HWND window, int width, int height)
 	//	キーボードの生成
 	keyboard = std::make_unique<Keyboard>();
 
+	//	角度の初期化
 	head_rot = 0.0f;
+
+	//	カメラの生成
+	m_Camera = std::make_unique<FollowCamera>(m_outputWidth, m_outputHeight);
+
+	head_pos = Vector3(0, 0, 30);
 }
 
 // Executes the basic game loop.
@@ -233,6 +239,19 @@ void Game::Update(DX::StepTimer const& timer)
 
 		head_world = rotmat * transmat;
 	}
+
+	//	カメラの座標
+	//Vector3 CameraPos(head_pos.x, head_pos.y + 1, head_pos.z + 3);
+
+	
+	{//	自機に追従するカメラ
+		m_Camera->SetTargetPos(head_pos);
+		m_Camera->SetTargetAngle(head_rot);
+
+		m_Camera->Update();
+		m_view = m_Camera->GetView();
+		m_proj = m_Camera->GetProjection();
+	}
 }
 
 // Draws the scene.
@@ -275,14 +294,37 @@ void Game::Render()
 	//);
 
 	//	デバッグカメラからビュー行列を取得
-	m_view = m_debugCamera->GetCameraMatrix();
+	//m_view = m_debugCamera->GetCameraMatrix();
 
-	//	プロジェクション行列を生成
-	m_proj = Matrix::CreatePerspectiveFieldOfView(
-		XM_PI / 4.f,									//	視野角(上下方向）
-		float(m_outputWidth) / float(m_outputHeight),	//	アスペクト比
-		0.1f,											//	ニアクリップ
-		500.f);											//	ファークリップ
+	////	カメラの位置(視点座標）
+	//Vector3 eyepos(0, 0, 5);
+	////	カメラの見ている先(注視点/参照点)
+	//Vector3 refpos(0, 0, 0);
+	////	カメラの上方向ベクトル
+	//static float angle = 0.0f;
+	//angle += 0.1f;
+	//Vector3 upvec(cosf(angle), sinf(angle), 0);
+	//upvec.Normalize();
+	////	ビュー行列の生成
+	//m_view = Matrix::CreateLookAt(eyepos, refpos, upvec);
+
+	////	プロジェクション行列を生成
+	////	垂直方向視野角
+	//float fovY = XMConvertToRadians(60.0f);
+	////	アスペクト比(横縦の比率）
+	//float aspect = (float)m_outputWidth / m_outputHeight;
+	////	ニアクリップ(手前の表示限界距離)
+	//float nearclip = 0.1f;
+	////	ファークリップ(奥の表示限界距離)
+	//float farclip = 10.0f;
+
+	//m_proj = Matrix::CreatePerspectiveFieldOfView(fovY, aspect, nearclip, farclip);
+
+	//m_proj = Matrix::CreatePerspectiveFieldOfView(
+	//	XM_PI / 4.f,									//	視野角(上下方向）
+	//	float(m_outputWidth) / float(m_outputHeight),	//	アスペクト比
+	//	0.1f,											//	ニアクリップ
+	//	500.f);											//	ファークリップ
 
 	m_effect->SetView(m_view);
 	m_effect->SetProjection(m_proj);
@@ -310,11 +352,11 @@ void Game::Render()
 	//	m_modelBall->Draw(m_d3dContext.Get(), *m_states, m_worldBall[i], m_view, m_proj);
 	//}
 
-	for (int i = 0; i < 20; i++)
-	{
-		//	ティーポットモデルの描画
-		m_modelTeapot->Draw(m_d3dContext.Get(), *m_states, m_worldTeapot[i], m_view, m_proj);
-	}
+	//for (int i = 0; i < 20; i++)
+	//{
+	//	//	ティーポットモデルの描画
+	//	m_modelTeapot->Draw(m_d3dContext.Get(), *m_states, m_worldTeapot[i], m_view, m_proj);
+	//}
 
 	//	頭モデルの描画
 	m_modelHead->Draw(m_d3dContext.Get(), *m_states, head_world, m_view, m_proj);
