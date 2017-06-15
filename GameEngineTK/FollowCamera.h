@@ -5,7 +5,10 @@
 //	多重インクルードの防止
 #pragma once
 
+#include <Windows.h>
+#include <Keyboard.h>
 #include "Camera.h"
+#include "Player.h"
 
 class FollowCamera : public Camera
 {
@@ -22,9 +25,25 @@ public:
 	//	追従対象の回転角をセット
 	void SetTargetAngle(float targetAngle);
 
+	//	キーボードをセット
+	void SetKeyboard(DirectX::Keyboard* keyboard);
+
+	//	プレイヤーをセット
+	void SetPlayer(Player* player) {
+		m_player = player;
+	}
+
 protected:
 	//	自機の座標
 	DirectX::SimpleMath::Vector3 m_targetPos;
 	//	追従対象の回転角
 	float m_targetAngle;
+	//	キーボード
+	DirectX::Keyboard* m_keyboard;
+	//	キーボードトラッカー
+	DirectX::Keyboard::KeyboardStateTracker m_keyboardTracker;
+	//	FPSフラグ
+	bool m_isFPS;
+	//	プレイヤー
+	Player* m_player;
 };

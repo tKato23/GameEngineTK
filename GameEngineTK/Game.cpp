@@ -14,10 +14,10 @@ using namespace DirectX::SimpleMath;
 using Microsoft::WRL::ComPtr;
 
 Game::Game() :
-    m_window(0),
-    m_outputWidth(800),
-    m_outputHeight(600),
-    m_featureLevel(D3D_FEATURE_LEVEL_9_1)
+	m_window(0),
+	m_outputWidth(800),
+	m_outputHeight(600),
+	m_featureLevel(D3D_FEATURE_LEVEL_9_1)
 {
 }
 
@@ -26,22 +26,31 @@ void Game::Initialize(HWND window, int width, int height)
 {
 	srand(static_cast<unsigned int>(time(nullptr)));
 
-    m_window = window;
-    m_outputWidth = std::max(width, 1);
-    m_outputHeight = std::max(height, 1);
+	m_window = window;
+	m_outputWidth = std::max(width, 1);
+	m_outputHeight = std::max(height, 1);
 
-    CreateDevice();
+	CreateDevice();
 
-    CreateResources();
+	CreateResources();
 
-    // TODO: Change the timer settings if you want something other than the default variable timestep mode.
-    // e.g. for 60 FPS fixed timestep update logic, call:
-    /*
-    m_timer.SetFixedTimeStep(true);
-    m_timer.SetTargetElapsedSeconds(1.0 / 60);
-    */
+	// TODO: Change the timer settings if you want something other than the default variable timestep mode.
+	// e.g. for 60 FPS fixed timestep update logic, call:
+	/*
+	m_timer.SetFixedTimeStep(true);
+	m_timer.SetTargetElapsedSeconds(1.0 / 60);
+	*/
 
 	//	初期化はここに書く
+	//	キーボードの生成
+	keyboard = std::make_unique<Keyboard>();
+	//	カメラの生成
+	m_Camera = std::make_unique<FollowCamera>(m_outputWidth, m_outputHeight);
+	//	カメラにキーボードをセット
+	m_Camera->SetKeyboard(keyboard.get());
+	//	3Dオブジェクトの静的メンバ変数を初期化
+	Obj3d::InitializeStatic(m_d3dDevice, m_d3dContext, m_Camera.get());
+
 	m_batch = std::make_unique<PrimitiveBatch<VertexPositionNormal>>(m_d3dContext.Get());
 
 
@@ -72,15 +81,15 @@ void Game::Initialize(HWND window, int width, int height)
 	//	テクスチャのパスを指定
 	m_factory->SetDirectory(L"Resources");
 	//	天球モデルの生成
-	m_modelSkydome = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\Skydome.cmo", *m_factory);
+	m_objSkydome.LoadModelFile(L"Resources\\Skydome.cmo");
 	//	地面モデルの生成
 	m_modelGround = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\ground200m.cmo", *m_factory);
 	//	球モデルの生成
 	m_modelBall = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\Sphere.cmo", *m_factory);
 	//	ティーポットモデルの生成
 	m_modelTeapot = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\Teapot.cmo", *m_factory);
-	//	頭モデルの生成
-	m_modelHead = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\head.cmo", *m_factory);
+	////	頭モデルの生成
+	//m_modelHead = Model::CreateFromCMO(m_d3dDevice.Get(), L"Resources\\head.cmo", *m_factory);
 
 	for (int i = 0; i < 20; i++)
 	{
@@ -118,49 +127,69 @@ void Game::Initialize(HWND window, int width, int height)
 	m_Rrot = Matrix::CreateRotationY(Rrot);
 
 	//	ティーポットの座標の初期化
-	for (int i = 0; i < 20; i++)
-	{
-		float Rad = (float)rand() / XM_2PI;
-		float Dis = rand() % 100;
-		m_x[i] = cos(Rad) * Dis;
-		m_z[i] = sin(Rad) * Dis;
+	//for (int i = 0; i < 20; i++)
+	//{
+	//	float Rad = (float)rand() / XM_2PI;
+	//	float Dis = rand() % 100;
+	//	m_x[i] = cos(Rad) * Dis;
+	//	m_z[i] = sin(Rad) * Dis;
 
-		m_worldTeapot[i] = Matrix::CreateTranslation(Vector3(m_x[i], 0.0f, m_z[i]));
-		m_worldTeapotSave[i] = m_worldTeapot[i];
-	}
+	//	m_worldTeapot[i] = Matrix::CreateTranslation(Vector3(m_x[i], 0.0f, m_z[i]));
+	//	m_worldTeapotSave[i] = m_worldTeapot[i];
+	//}
 
 	m_r = 0.0f;
 
-	//	キーボードの生成
-	keyboard = std::make_unique<Keyboard>();
+
 
 	//	角度の初期化
 	head_rot = 0.0f;
 
 	//	カメラの生成
-	m_Camera = std::make_unique<FollowCamera>(m_outputWidth, m_outputHeight);
+	//m_Camera = std::make_unique<FollowCamera>(m_outputWidth, m_outputHeight);
+	//m_Camera->SetKeyboard(keyboard.get());
+	//head_pos = Vector3(0, 0, 30);
 
-	head_pos = Vector3(0, 0, 30);
+	//	プレイヤーの初期化
+	m_pPlayer = std::make_unique<Player>();
+	m_pPlayer->Initialize();
+
+	//	追従カメラにプレイヤーをセット
+	m_Camera->SetPlayer(m_pPlayer.get());
+
+	//	敵の生成
+	int enemyNum = rand() % 10 + 1;
+	m_Enemies.resize(enemyNum);
+	for (int i = 0; i < enemyNum; i++)
+	{
+		m_Enemies[i] = std::make_unique<Enemy>();
+		m_Enemies[i]->Initialize();
+	}
+
+	//m_ObjPlayer[PLAYER_PARTS_ARM].SetScale(Vector3(1.5f, 1.5f, 1.5f));
+
+	//	変数の初期化
+	m_height = 0.0f;
 }
 
 // Executes the basic game loop.
 void Game::Tick()
 {
-    m_timer.Tick([&]()
-    {
-        Update(m_timer);
-    });
+	m_timer.Tick([&]()
+	{
+		Update(m_timer);
+	});
 
-    Render();
+	Render();
 }
 
 // Updates the world.
 void Game::Update(DX::StepTimer const& timer)
 {
-    float elapsedTime = float(timer.GetElapsedSeconds());
+	float elapsedTime = float(timer.GetElapsedSeconds());
 
-    // TODO: Add your game logic here.
-    elapsedTime;
+	// TODO: Add your game logic here.
+	elapsedTime;
 
 	m_r++;
 	float rot = XMConvertToRadians(m_r);
@@ -190,67 +219,56 @@ void Game::Update(DX::StepTimer const& timer)
 		
 
 	}
+
 	//	キーボードの取得
 	Keyboard::State key = keyboard->GetState();
 
-	//	左旋回処理
-	if (key.A)
-	{
-		//	自機の角度を回転
-		head_rot += 0.03f;
-	}
+	auto state = keyboard->GetState();
+	tracker.Update(state);
+	
 
-	//	左旋回処理
-	if (key.D)
-	{
-		//	自機の角度を回転
-		head_rot += -0.03f;
-	}
+	//{//	自機のワールド行列を計算
+	//	//	パーツ1の計算
+	//	Matrix rotmat = Matrix::CreateRotationY(head_rot);
+	//	Matrix transmat = Matrix::CreateTranslation(head_pos);
+	//	//	ワールド行列の合成
+	//	head_world = rotmat * transmat;
 
-	//	前進処理
-	if (key.W)
-	{
-		//	移動ベクトル
-		Vector3 moveV(0.0f, 0.0f, -0.1f);
-		//	移動ベクトルを自機の角度分回転させる
-		moveV = Vector3::TransformNormal(moveV, head_world);
-
-		//Matrix rotmat = Matrix::CreateRotationY(head_rot);
-		//moveV = Vector3::TransformNormal(moveV, rotmat);
-
-		//	自機の座標を移動
-		head_pos += moveV;
-	}
-
-	//	後退処理
-	if (key.S)
-	{
-		//	移動ベクトル
-		Vector3 moveV(0.0f, 0.0f, 0.1f);
-		//	移動ベクトルを自機の角度分回転させる
-		moveV = Vector3::TransformNormal(moveV, head_world);
-		//	自機の座標を移動
-		head_pos += moveV;
-	}
-
-	{//	自機のワールド行列を計算
-		Matrix rotmat = Matrix::CreateRotationY(head_rot);
-		Matrix transmat = Matrix::CreateTranslation(head_pos);
-
-		head_world = rotmat * transmat;
-	}
+	//	//	パーツ2の計算
+	//	Matrix rotmat2 = Matrix::CreateRotationZ(XM_PIDIV2) * Matrix::CreateRotationY(0);
+	//	Matrix transmat2 = Matrix::CreateTranslation(Vector3(0, 0.5f, 0));
+	//	//	ワールド行列の合成(子供の行列 * 親の行列)
+	//	head_world2 = rotmat2 * transmat2 * head_world;
+	//}
 
 	//	カメラの座標
 	//Vector3 CameraPos(head_pos.x, head_pos.y + 1, head_pos.z + 3);
 
 	
 	{//	自機に追従するカメラ
-		m_Camera->SetTargetPos(head_pos);
-		m_Camera->SetTargetAngle(head_rot);
 
 		m_Camera->Update();
 		m_view = m_Camera->GetView();
 		m_proj = m_Camera->GetProjection();
+	}
+
+	m_objSkydome.Update();
+
+	//for (std::vector<Obj3d>::iterator it = m_ObjPlayer.begin(); it != m_ObjPlayer.end(); it++)
+	//{
+	//	it->Update();
+	//}
+
+	//	更新処理
+	m_pPlayer->PlayerUpdate(key, tracker);
+
+	for (std::vector<std::unique_ptr<Enemy>>::iterator it = m_Enemies.begin(); it != m_Enemies.end(); it++)
+	{
+		Enemy* enemy = it->get();
+
+		enemy->EnemyUpdate();
+
+		//(*it)->EnemyUpdate();
 	}
 }
 
@@ -272,15 +290,15 @@ void Game::Render()
 		{ Vector3(+1.0f, -1.0f, 0.0f), Vector3(0.0f, 0.0f, +1.0f) },
 	};
 
-    // Don't try to render anything before the first Update.
-    if (m_timer.GetFrameCount() == 0)
-    {
-        return;
-    }
+	// Don't try to render anything before the first Update.
+	if (m_timer.GetFrameCount() == 0)
+	{
+		return;
+	}
 
-    Clear();
+	Clear();
 
-    // TODO: Add your rendering code here.
+	// TODO: Add your rendering code here.
 	//	描画処理を書く
 	m_d3dContext->OMSetBlendState(m_states->Opaque(), nullptr, 0xFFFFFFFF);
 	m_d3dContext->OMSetDepthStencilState(m_states->DepthNone(), 0);
@@ -333,7 +351,7 @@ void Game::Render()
 	m_d3dContext->IASetInputLayout(m_inputLayout.Get());
 
 	//	天球モデルの描画
-	m_modelSkydome->Draw(m_d3dContext.Get(), *m_states, Matrix::Identity, m_view, m_proj);
+	m_objSkydome.Draw();
 
 	//for (int i = 0; i < 40000; i++)
 	//{
@@ -358,8 +376,26 @@ void Game::Render()
 	//	m_modelTeapot->Draw(m_d3dContext.Get(), *m_states, m_worldTeapot[i], m_view, m_proj);
 	//}
 
-	//	頭モデルの描画
-	m_modelHead->Draw(m_d3dContext.Get(), *m_states, head_world, m_view, m_proj);
+	//for (std::vector<Obj3d>::iterator it = m_ObjPlayer.begin(); it != m_ObjPlayer.end(); it++)
+	//{
+	//	it->Draw();
+	//}
+
+	//	描画処理
+	m_pPlayer->PlayerDraw();
+
+	for (std::vector<std::unique_ptr<Enemy>>::iterator it = m_Enemies.begin(); it != m_Enemies.end(); it++)
+	{
+		Enemy* enemy = it->get();
+
+		enemy->EnemyDraw();
+	}
+
+	////	パーツ1の描画
+	//m_modelHead->Draw(m_d3dContext.Get(), *m_states, head_world, m_view, m_proj);
+
+	////	パーツ2の描画
+	//m_modelHead->Draw(m_d3dContext.Get(), *m_states, head_world2, m_view, m_proj);
 
 	m_batch->Begin();
 
@@ -385,300 +421,300 @@ void Game::Render()
 
 	m_batch->End();
 
-    Present();
+	Present();
 }
 
 // Helper method to clear the back buffers.
 void Game::Clear()
 {
-    // Clear the views.
-    m_d3dContext->ClearRenderTargetView(m_renderTargetView.Get(), Colors::CornflowerBlue);
-    m_d3dContext->ClearDepthStencilView(m_depthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+	// Clear the views.
+	m_d3dContext->ClearRenderTargetView(m_renderTargetView.Get(), Colors::CornflowerBlue);
+	m_d3dContext->ClearDepthStencilView(m_depthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-    m_d3dContext->OMSetRenderTargets(1, m_renderTargetView.GetAddressOf(), m_depthStencilView.Get());
+	m_d3dContext->OMSetRenderTargets(1, m_renderTargetView.GetAddressOf(), m_depthStencilView.Get());
 
-    // Set the viewport.
-    CD3D11_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>(m_outputWidth), static_cast<float>(m_outputHeight));
-    m_d3dContext->RSSetViewports(1, &viewport);
+	// Set the viewport.
+	CD3D11_VIEWPORT viewport(0.0f, 0.0f, static_cast<float>(m_outputWidth), static_cast<float>(m_outputHeight));
+	m_d3dContext->RSSetViewports(1, &viewport);
 }
 
 // Presents the back buffer contents to the screen.
 void Game::Present()
 {
-    // The first argument instructs DXGI to block until VSync, putting the application
-    // to sleep until the next VSync. This ensures we don't waste any cycles rendering
-    // frames that will never be displayed to the screen.
-    HRESULT hr = m_swapChain->Present(1, 0);
+	// The first argument instructs DXGI to block until VSync, putting the application
+	// to sleep until the next VSync. This ensures we don't waste any cycles rendering
+	// frames that will never be displayed to the screen.
+	HRESULT hr = m_swapChain->Present(1, 0);
 
-    // If the device was reset we must completely reinitialize the renderer.
-    if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
-    {
-        OnDeviceLost();
-    }
-    else
-    {
-        DX::ThrowIfFailed(hr);
-    }
+	// If the device was reset we must completely reinitialize the renderer.
+	if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+	{
+		OnDeviceLost();
+	}
+	else
+	{
+		DX::ThrowIfFailed(hr);
+	}
 }
 
 // Message handlers
 void Game::OnActivated()
 {
-    // TODO: Game is becoming active window.
+	// TODO: Game is becoming active window.
 }
 
 void Game::OnDeactivated()
 {
-    // TODO: Game is becoming background window.
+	// TODO: Game is becoming background window.
 }
 
 void Game::OnSuspending()
 {
-    // TODO: Game is being power-suspended (or minimized).
+	// TODO: Game is being power-suspended (or minimized).
 }
 
 void Game::OnResuming()
 {
-    m_timer.ResetElapsedTime();
+	m_timer.ResetElapsedTime();
 
-    // TODO: Game is being power-resumed (or returning from minimize).
+	// TODO: Game is being power-resumed (or returning from minimize).
 }
 
 void Game::OnWindowSizeChanged(int width, int height)
 {
-    m_outputWidth = std::max(width, 1);
-    m_outputHeight = std::max(height, 1);
+	m_outputWidth = std::max(width, 1);
+	m_outputHeight = std::max(height, 1);
 
-    CreateResources();
+	CreateResources();
 
-    // TODO: Game window is being resized.
+	// TODO: Game window is being resized.
 }
 
 // Properties
 void Game::GetDefaultSize(int& width, int& height) const
 {
-    // TODO: Change to desired default window size (note minimum size is 320x200).
-    width = 800;
-    height = 600;
+	// TODO: Change to desired default window size (note minimum size is 320x200).
+	width = 800;
+	height = 600;
 }
 
 // These are the resources that depend on the device.
 void Game::CreateDevice()
 {
-    UINT creationFlags = 0;
+	UINT creationFlags = 0;
 
 #ifdef _DEBUG
-    creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
+	creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
-    static const D3D_FEATURE_LEVEL featureLevels [] =
-    {
-        // TODO: Modify for supported Direct3D feature levels (see code below related to 11.1 fallback handling).
-        D3D_FEATURE_LEVEL_11_1,
-        D3D_FEATURE_LEVEL_11_0,
-        D3D_FEATURE_LEVEL_10_1,
-        D3D_FEATURE_LEVEL_10_0,
-        D3D_FEATURE_LEVEL_9_3,
-        D3D_FEATURE_LEVEL_9_2,
-        D3D_FEATURE_LEVEL_9_1,
-    };
+	static const D3D_FEATURE_LEVEL featureLevels [] =
+	{
+		// TODO: Modify for supported Direct3D feature levels (see code below related to 11.1 fallback handling).
+		D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0,
+		D3D_FEATURE_LEVEL_10_1,
+		D3D_FEATURE_LEVEL_10_0,
+		D3D_FEATURE_LEVEL_9_3,
+		D3D_FEATURE_LEVEL_9_2,
+		D3D_FEATURE_LEVEL_9_1,
+	};
 
-    // Create the DX11 API device object, and get a corresponding context.
-    HRESULT hr = D3D11CreateDevice(
-        nullptr,                                // specify nullptr to use the default adapter
-        D3D_DRIVER_TYPE_HARDWARE,
-        nullptr,
-        creationFlags,
-        featureLevels,
-        _countof(featureLevels),
-        D3D11_SDK_VERSION,
-        m_d3dDevice.ReleaseAndGetAddressOf(),   // returns the Direct3D device created
-        &m_featureLevel,                        // returns feature level of device created
-        m_d3dContext.ReleaseAndGetAddressOf()   // returns the device immediate context
-        );
+	// Create the DX11 API device object, and get a corresponding context.
+	HRESULT hr = D3D11CreateDevice(
+		nullptr,                                // specify nullptr to use the default adapter
+		D3D_DRIVER_TYPE_HARDWARE,
+		nullptr,
+		creationFlags,
+		featureLevels,
+		_countof(featureLevels),
+		D3D11_SDK_VERSION,
+		m_d3dDevice.ReleaseAndGetAddressOf(),   // returns the Direct3D device created
+		&m_featureLevel,                        // returns feature level of device created
+		m_d3dContext.ReleaseAndGetAddressOf()   // returns the device immediate context
+		);
 
-    if (hr == E_INVALIDARG)
-    {
-        // DirectX 11.0 platforms will not recognize D3D_FEATURE_LEVEL_11_1 so we need to retry without it.
-        hr = D3D11CreateDevice(nullptr,
-            D3D_DRIVER_TYPE_HARDWARE,
-            nullptr,
-            creationFlags,
-            &featureLevels[1],
-            _countof(featureLevels) - 1,
-            D3D11_SDK_VERSION,
-            m_d3dDevice.ReleaseAndGetAddressOf(),
-            &m_featureLevel,
-            m_d3dContext.ReleaseAndGetAddressOf()
-            );
-    }
+	if (hr == E_INVALIDARG)
+	{
+		// DirectX 11.0 platforms will not recognize D3D_FEATURE_LEVEL_11_1 so we need to retry without it.
+		hr = D3D11CreateDevice(nullptr,
+			D3D_DRIVER_TYPE_HARDWARE,
+			nullptr,
+			creationFlags,
+			&featureLevels[1],
+			_countof(featureLevels) - 1,
+			D3D11_SDK_VERSION,
+			m_d3dDevice.ReleaseAndGetAddressOf(),
+			&m_featureLevel,
+			m_d3dContext.ReleaseAndGetAddressOf()
+			);
+	}
 
-    DX::ThrowIfFailed(hr);
+	DX::ThrowIfFailed(hr);
 
 #ifndef NDEBUG
-    ComPtr<ID3D11Debug> d3dDebug;
-    if (SUCCEEDED(m_d3dDevice.As(&d3dDebug)))
-    {
-        ComPtr<ID3D11InfoQueue> d3dInfoQueue;
-        if (SUCCEEDED(d3dDebug.As(&d3dInfoQueue)))
-        {
+	ComPtr<ID3D11Debug> d3dDebug;
+	if (SUCCEEDED(m_d3dDevice.As(&d3dDebug)))
+	{
+		ComPtr<ID3D11InfoQueue> d3dInfoQueue;
+		if (SUCCEEDED(d3dDebug.As(&d3dInfoQueue)))
+		{
 #ifdef _DEBUG
-            d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, true);
-            d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, true);
+			d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, true);
+			d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, true);
 #endif
-            D3D11_MESSAGE_ID hide [] =
-            {
-                D3D11_MESSAGE_ID_SETPRIVATEDATA_CHANGINGPARAMS,
-                // TODO: Add more message IDs here as needed.
-            };
-            D3D11_INFO_QUEUE_FILTER filter = {};
-            filter.DenyList.NumIDs = _countof(hide);
-            filter.DenyList.pIDList = hide;
-            d3dInfoQueue->AddStorageFilterEntries(&filter);
-        }
-    }
+			D3D11_MESSAGE_ID hide [] =
+			{
+				D3D11_MESSAGE_ID_SETPRIVATEDATA_CHANGINGPARAMS,
+				// TODO: Add more message IDs here as needed.
+			};
+			D3D11_INFO_QUEUE_FILTER filter = {};
+			filter.DenyList.NumIDs = _countof(hide);
+			filter.DenyList.pIDList = hide;
+			d3dInfoQueue->AddStorageFilterEntries(&filter);
+		}
+	}
 #endif
 
-    // DirectX 11.1 if present
-    if (SUCCEEDED(m_d3dDevice.As(&m_d3dDevice1)))
-        (void)m_d3dContext.As(&m_d3dContext1);
+	// DirectX 11.1 if present
+	if (SUCCEEDED(m_d3dDevice.As(&m_d3dDevice1)))
+		(void)m_d3dContext.As(&m_d3dContext1);
 
-    // TODO: Initialize device dependent objects here (independent of window size).
+	// TODO: Initialize device dependent objects here (independent of window size).
 }
 
 // Allocate all memory resources that change on a window SizeChanged event.
 void Game::CreateResources()
 {
-    // Clear the previous window size specific context.
-    ID3D11RenderTargetView* nullViews [] = { nullptr };
-    m_d3dContext->OMSetRenderTargets(_countof(nullViews), nullViews, nullptr);
-    m_renderTargetView.Reset();
-    m_depthStencilView.Reset();
-    m_d3dContext->Flush();
+	// Clear the previous window size specific context.
+	ID3D11RenderTargetView* nullViews [] = { nullptr };
+	m_d3dContext->OMSetRenderTargets(_countof(nullViews), nullViews, nullptr);
+	m_renderTargetView.Reset();
+	m_depthStencilView.Reset();
+	m_d3dContext->Flush();
 
-    UINT backBufferWidth = static_cast<UINT>(m_outputWidth);
-    UINT backBufferHeight = static_cast<UINT>(m_outputHeight);
-    DXGI_FORMAT backBufferFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
-    DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    UINT backBufferCount = 2;
+	UINT backBufferWidth = static_cast<UINT>(m_outputWidth);
+	UINT backBufferHeight = static_cast<UINT>(m_outputHeight);
+	DXGI_FORMAT backBufferFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+	DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	UINT backBufferCount = 2;
 
-    // If the swap chain already exists, resize it, otherwise create one.
-    if (m_swapChain)
-    {
-        HRESULT hr = m_swapChain->ResizeBuffers(backBufferCount, backBufferWidth, backBufferHeight, backBufferFormat, 0);
+	// If the swap chain already exists, resize it, otherwise create one.
+	if (m_swapChain)
+	{
+		HRESULT hr = m_swapChain->ResizeBuffers(backBufferCount, backBufferWidth, backBufferHeight, backBufferFormat, 0);
 
-        if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
-        {
-            // If the device was removed for any reason, a new device and swap chain will need to be created.
-            OnDeviceLost();
+		if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+		{
+			// If the device was removed for any reason, a new device and swap chain will need to be created.
+			OnDeviceLost();
 
-            // Everything is set up now. Do not continue execution of this method. OnDeviceLost will reenter this method 
-            // and correctly set up the new device.
-            return;
-        }
-        else
-        {
-            DX::ThrowIfFailed(hr);
-        }
-    }
-    else
-    {
-        // First, retrieve the underlying DXGI Device from the D3D Device.
-        ComPtr<IDXGIDevice1> dxgiDevice;
-        DX::ThrowIfFailed(m_d3dDevice.As(&dxgiDevice));
+			// Everything is set up now. Do not continue execution of this method. OnDeviceLost will reenter this method 
+			// and correctly set up the new device.
+			return;
+		}
+		else
+		{
+			DX::ThrowIfFailed(hr);
+		}
+	}
+	else
+	{
+		// First, retrieve the underlying DXGI Device from the D3D Device.
+		ComPtr<IDXGIDevice1> dxgiDevice;
+		DX::ThrowIfFailed(m_d3dDevice.As(&dxgiDevice));
 
-        // Identify the physical adapter (GPU or card) this device is running on.
-        ComPtr<IDXGIAdapter> dxgiAdapter;
-        DX::ThrowIfFailed(dxgiDevice->GetAdapter(dxgiAdapter.GetAddressOf()));
+		// Identify the physical adapter (GPU or card) this device is running on.
+		ComPtr<IDXGIAdapter> dxgiAdapter;
+		DX::ThrowIfFailed(dxgiDevice->GetAdapter(dxgiAdapter.GetAddressOf()));
 
-        // And obtain the factory object that created it.
-        ComPtr<IDXGIFactory1> dxgiFactory;
-        DX::ThrowIfFailed(dxgiAdapter->GetParent(IID_PPV_ARGS(dxgiFactory.GetAddressOf())));
+		// And obtain the factory object that created it.
+		ComPtr<IDXGIFactory1> dxgiFactory;
+		DX::ThrowIfFailed(dxgiAdapter->GetParent(IID_PPV_ARGS(dxgiFactory.GetAddressOf())));
 
-        ComPtr<IDXGIFactory2> dxgiFactory2;
-        if (SUCCEEDED(dxgiFactory.As(&dxgiFactory2)))
-        {
-            // DirectX 11.1 or later
+		ComPtr<IDXGIFactory2> dxgiFactory2;
+		if (SUCCEEDED(dxgiFactory.As(&dxgiFactory2)))
+		{
+			// DirectX 11.1 or later
 
-            // Create a descriptor for the swap chain.
-            DXGI_SWAP_CHAIN_DESC1 swapChainDesc = { 0 };
-            swapChainDesc.Width = backBufferWidth;
-            swapChainDesc.Height = backBufferHeight;
-            swapChainDesc.Format = backBufferFormat;
-            swapChainDesc.SampleDesc.Count = 1;
-            swapChainDesc.SampleDesc.Quality = 0;
-            swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-            swapChainDesc.BufferCount = backBufferCount;
+			// Create a descriptor for the swap chain.
+			DXGI_SWAP_CHAIN_DESC1 swapChainDesc = { 0 };
+			swapChainDesc.Width = backBufferWidth;
+			swapChainDesc.Height = backBufferHeight;
+			swapChainDesc.Format = backBufferFormat;
+			swapChainDesc.SampleDesc.Count = 1;
+			swapChainDesc.SampleDesc.Quality = 0;
+			swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+			swapChainDesc.BufferCount = backBufferCount;
 
-            DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = { 0 };
-            fsSwapChainDesc.Windowed = TRUE;
+			DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = { 0 };
+			fsSwapChainDesc.Windowed = TRUE;
 
-            // Create a SwapChain from a Win32 window.
-            DX::ThrowIfFailed(dxgiFactory2->CreateSwapChainForHwnd(
-                m_d3dDevice.Get(),
-                m_window,
-                &swapChainDesc,
-                &fsSwapChainDesc,
-                nullptr,
-                m_swapChain1.ReleaseAndGetAddressOf()
-                ));
+			// Create a SwapChain from a Win32 window.
+			DX::ThrowIfFailed(dxgiFactory2->CreateSwapChainForHwnd(
+				m_d3dDevice.Get(),
+				m_window,
+				&swapChainDesc,
+				&fsSwapChainDesc,
+				nullptr,
+				m_swapChain1.ReleaseAndGetAddressOf()
+				));
 
-            DX::ThrowIfFailed(m_swapChain1.As(&m_swapChain));
-        }
-        else
-        {
-            DXGI_SWAP_CHAIN_DESC swapChainDesc = { 0 };
-            swapChainDesc.BufferCount = backBufferCount;
-            swapChainDesc.BufferDesc.Width = backBufferWidth;
-            swapChainDesc.BufferDesc.Height = backBufferHeight;
-            swapChainDesc.BufferDesc.Format = backBufferFormat;
-            swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-            swapChainDesc.OutputWindow = m_window;
-            swapChainDesc.SampleDesc.Count = 1;
-            swapChainDesc.SampleDesc.Quality = 0;
-            swapChainDesc.Windowed = TRUE;
+			DX::ThrowIfFailed(m_swapChain1.As(&m_swapChain));
+		}
+		else
+		{
+			DXGI_SWAP_CHAIN_DESC swapChainDesc = { 0 };
+			swapChainDesc.BufferCount = backBufferCount;
+			swapChainDesc.BufferDesc.Width = backBufferWidth;
+			swapChainDesc.BufferDesc.Height = backBufferHeight;
+			swapChainDesc.BufferDesc.Format = backBufferFormat;
+			swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+			swapChainDesc.OutputWindow = m_window;
+			swapChainDesc.SampleDesc.Count = 1;
+			swapChainDesc.SampleDesc.Quality = 0;
+			swapChainDesc.Windowed = TRUE;
 
-            DX::ThrowIfFailed(dxgiFactory->CreateSwapChain(m_d3dDevice.Get(), &swapChainDesc, m_swapChain.ReleaseAndGetAddressOf()));
-        }
+			DX::ThrowIfFailed(dxgiFactory->CreateSwapChain(m_d3dDevice.Get(), &swapChainDesc, m_swapChain.ReleaseAndGetAddressOf()));
+		}
 
-        // This template does not support exclusive fullscreen mode and prevents DXGI from responding to the ALT+ENTER shortcut.
-        DX::ThrowIfFailed(dxgiFactory->MakeWindowAssociation(m_window, DXGI_MWA_NO_ALT_ENTER));
-    }
+		// This template does not support exclusive fullscreen mode and prevents DXGI from responding to the ALT+ENTER shortcut.
+		DX::ThrowIfFailed(dxgiFactory->MakeWindowAssociation(m_window, DXGI_MWA_NO_ALT_ENTER));
+	}
 
-    // Obtain the backbuffer for this window which will be the final 3D rendertarget.
-    ComPtr<ID3D11Texture2D> backBuffer;
-    DX::ThrowIfFailed(m_swapChain->GetBuffer(0, IID_PPV_ARGS(backBuffer.GetAddressOf())));
+	// Obtain the backbuffer for this window which will be the final 3D rendertarget.
+	ComPtr<ID3D11Texture2D> backBuffer;
+	DX::ThrowIfFailed(m_swapChain->GetBuffer(0, IID_PPV_ARGS(backBuffer.GetAddressOf())));
 
-    // Create a view interface on the rendertarget to use on bind.
-    DX::ThrowIfFailed(m_d3dDevice->CreateRenderTargetView(backBuffer.Get(), nullptr, m_renderTargetView.ReleaseAndGetAddressOf()));
+	// Create a view interface on the rendertarget to use on bind.
+	DX::ThrowIfFailed(m_d3dDevice->CreateRenderTargetView(backBuffer.Get(), nullptr, m_renderTargetView.ReleaseAndGetAddressOf()));
 
-    // Allocate a 2-D surface as the depth/stencil buffer and
-    // create a DepthStencil view on this surface to use on bind.
-    CD3D11_TEXTURE2D_DESC depthStencilDesc(depthBufferFormat, backBufferWidth, backBufferHeight, 1, 1, D3D11_BIND_DEPTH_STENCIL);
+	// Allocate a 2-D surface as the depth/stencil buffer and
+	// create a DepthStencil view on this surface to use on bind.
+	CD3D11_TEXTURE2D_DESC depthStencilDesc(depthBufferFormat, backBufferWidth, backBufferHeight, 1, 1, D3D11_BIND_DEPTH_STENCIL);
 
-    ComPtr<ID3D11Texture2D> depthStencil;
-    DX::ThrowIfFailed(m_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, depthStencil.GetAddressOf()));
+	ComPtr<ID3D11Texture2D> depthStencil;
+	DX::ThrowIfFailed(m_d3dDevice->CreateTexture2D(&depthStencilDesc, nullptr, depthStencil.GetAddressOf()));
 
-    CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(D3D11_DSV_DIMENSION_TEXTURE2D);
-    DX::ThrowIfFailed(m_d3dDevice->CreateDepthStencilView(depthStencil.Get(), &depthStencilViewDesc, m_depthStencilView.ReleaseAndGetAddressOf()));
+	CD3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc(D3D11_DSV_DIMENSION_TEXTURE2D);
+	DX::ThrowIfFailed(m_d3dDevice->CreateDepthStencilView(depthStencil.Get(), &depthStencilViewDesc, m_depthStencilView.ReleaseAndGetAddressOf()));
 
-    // TODO: Initialize windows-size dependent objects here.
+	// TODO: Initialize windows-size dependent objects here.
 }
 
 void Game::OnDeviceLost()
 {
-    // TODO: Add Direct3D resource cleanup here.
+	// TODO: Add Direct3D resource cleanup here.
 
-    m_depthStencilView.Reset();
-    m_renderTargetView.Reset();
-    m_swapChain1.Reset();
-    m_swapChain.Reset();
-    m_d3dContext1.Reset();
-    m_d3dContext.Reset();
-    m_d3dDevice1.Reset();
-    m_d3dDevice.Reset();
+	m_depthStencilView.Reset();
+	m_renderTargetView.Reset();
+	m_swapChain1.Reset();
+	m_swapChain.Reset();
+	m_d3dContext1.Reset();
+	m_d3dContext.Reset();
+	m_d3dDevice1.Reset();
+	m_d3dDevice.Reset();
 
-    CreateDevice();
+	CreateDevice();
 
-    CreateResources();
+	CreateResources();
 }
